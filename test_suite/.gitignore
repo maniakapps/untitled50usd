@@ -1,0 +1,6 @@
+*.txt
+tests/
+solutions/
+run_tests.sh
+obj/
+dccars
