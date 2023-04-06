@@ -16,13 +16,13 @@ typedef struct {
 
 // Declaración de funciones
 bool check_arguments(int argc, char **argv);
-void init_votacion(int num_candidatos);
-void registrar_voto(int voter_id, int candidate_id, FILE *output_file);
+void init_votacion(int nc);
+void registrar_voto(int votante_id, int candidato_id, FILE *output_file);
 void conteo_parcial(FILE *output_file);
 void conteo_total(FILE *output_file);
 void conteo_rango(int min_votes, int max_votes, FILE *output_file);
 void ordenar_candidatos(FILE *output_file);
-void anular_voto(int voter_id, int candidate_id, FILE *output_file);
+void anular_voto(int votante_id, int candidato_id, FILE *output_file);
 void eliminar_candidato(FILE *output_file);
 void traspasar_exceso_votos(int candidato_id, int m, FILE *output_file);
 
@@ -40,11 +40,15 @@ bool check_arguments(int argc, char **argv) {
     return true;
 }
 
-void init_votacion(int num_candidatos) {
-    for (int i = 0; i < num_candidatos; i++) {
+void init_votacion(int nc) {
+    for (int i = 0; i < nc; i++) {
         candidatos[i].id = i;
         candidatos[i].votos = 0;
         candidatos[i].eliminado = false;
+    }
+    for (int i = 0; i < MAX_VOTANTES; i++) {
+        votantes[i].id = i;
+        votantes[i].candidato_id = -1; // Inicializa el votante con candidato_id = -1
     }
 }
 void registrar_voto(int votante_id, int candidato_id, FILE *output_file) {
@@ -62,8 +66,8 @@ void conteo_parcial(FILE *output_file) {
         if (candidatos[i].votos == 0) {
             fprintf(output_file, "\t\tNO HAY VOTOS REGISTRADOS\n");
         } else {
-            for (int j = 0; j < num_votantes; j++) {
-                if (votantes[j].candidato_id == i) {
+            for (int j = 0; j <= num_votantes; j++) {
+                if (votantes[j].candidato_id ==i) {
                     fprintf(output_file, "\t\tVOTE %d\n", votantes[j].id);
                 }
             }
@@ -79,10 +83,10 @@ void conteo_total(FILE *output_file) {
 
     fprintf(output_file, "CONTEO-TOTAL\n");
     for (int i = 0; i < num_candidatos; i++) {
-        fprintf(output_file, "\t\tCANDIDATO %d: %d\n", i, candidatos[i].votos);
+        fprintf(output_file, "\tCANDIDATO %d: %d\n", i, candidatos[i].votos);
         total_votos += candidatos[i].votos;
     }
-    fprintf(output_file, "TOTAL DE VOTOS: %d\n", total_votos);
+    fprintf(output_file, "TOTAL VOTOS: %d\n", total_votos);
 }
 
 
@@ -91,35 +95,40 @@ void conteo_rango(int min_votes, int max_votes, FILE *output_file) {
     fprintf(output_file, "CONTEO-RANGO %d %d\n", min_votes, max_votes);
     for (int i = 0; i < num_candidatos; i++) {
         if (candidatos[i].votos >= min_votes && candidatos[i].votos <= max_votes) {
-            fprintf(output_file, "\t\tCANDIDATO %d: %d VOTOS\n", i, candidatos[i].votos);
+            fprintf(output_file, "\tCANDIDATO %d: %d VOTOS\n", i, candidatos[i].votos);
         }
     }
 }
 
 void ordenar_candidatos(FILE *output_file) {
     fprintf(output_file, "CANDIDATOS-ORDENADOS\n");
-    int total_votos = 0;
 
-    for (int i = 0; i < num_candidatos - 1; i++) {
-        for (int j = 0; j < num_candidatos - i - 1; j++) {
-            if (candidatos[j].votos < candidatos[j + 1].votos) {
-                Candidato temp = candidatos[j];
-                candidatos[j] = candidatos[j + 1];
-                candidatos[j + 1] = temp;
+    Candidato candidatos_copia[MAX_CANDIDATOS];
+    memcpy(candidatos_copia, candidatos, sizeof(candidatos));
+    int total_votos = 0;
+    for (int i = 0; i < num_candidatos; i++) {
+        int max_votos_idx = -1;
+        int max_votos = -1;
+        for (int j = 0; j < num_candidatos; j++) {
+            if (!candidatos_copia[j].eliminado && candidatos_copia[j].votos > max_votos) {
+                max_votos = candidatos_copia[j].votos;
+                max_votos_idx = j;
             }
         }
-    }
-
-    for (int i = 0; i < num_candidatos; i++) {
-        fprintf(output_file, "\t\tCANDIDATO %d: %d\n", candidatos[i].id, candidatos[i].votos);
+        if (max_votos_idx != -1) {
+            fprintf(output_file, "\tCANDIDATO %d: %d\n", candidatos_copia[max_votos_idx].id, candidatos_copia[max_votos_idx].votos);
+            candidatos_copia[max_votos_idx].eliminado = true;
+        }
         total_votos += candidatos[i].votos;
     }
-    fprintf(output_file, "TOTAL DE VOTOS: %d\n", num_votantes); // Reemplaza 'total_votos' por 'num_votantes'
+    fprintf(output_file, "TOTAL DE VOTOS: %d\n", total_votos);
 }
+
 
 void anular_voto(int votante_id, int candidato_id, FILE *output_file) {
     // Implementa la lógica para anular un voto
     candidatos[candidato_id].votos--;
+    votantes[votante_id].candidato_id = -1;
     fprintf(output_file, "VOTO ELIMINADO CORRECTAMENTE\n");
 }
 
@@ -163,7 +172,7 @@ void traspasar_exceso_votos(int candidato_id, int m, FILE *output_file) {
             candidatos[next_candidate_id].votos++;
             votos_traspasados++;
 
-            fprintf(output_file, "\t\tVOTO %d TRASPASADO DEL CANDIDATO %d AL CANDIDATO %d\n", votantes[i].id, candidato_id, next_candidate_id);
+            fprintf(output_file, "\tVOTO %d TRASPASADO DEL CANDIDATO %d AL CANDIDATO %d\n", votantes[i].id, candidato_id, next_candidate_id);
         }
     }
 }
